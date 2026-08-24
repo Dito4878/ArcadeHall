@@ -1,0 +1,41 @@
+name: Build Fire TV APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+env:
+  GODOT_VERSION: 4.7.1
+
+jobs:
+  build-android:
+    name: ArcadeHall Android APK
+    runs-on: ubuntu-24.04
+
+    container:
+      image: barichello/godot-ci:4.7.1
+
+    steps:
+      - name: Projekt laden
+        uses: actions/checkout@v4
+
+      - name: Godot vorbereiten
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates/
+          mkdir -p ~/.config/
+          mv /root/.config/godot ~/.config/godot || true
+          mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable || true
+
+      - name: APK bauen
+        run: |
+          mkdir -p build/android
+          EXPORT_DIR="$(readlink -f build/android)"
+          godot --headless --verbose --path . --export-debug "Android Fire TV" "$EXPORT_DIR/ArcadeHall-debug.apk"
+
+      - name: APK speichern
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArcadeHall-FireTV-APK
+          path: build/android/ArcadeHall-debug.apk
