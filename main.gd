@@ -43,11 +43,8 @@ var current_cabinet := -1
 var last_focused_cabinet := -1
 
 func _ready() -> void:
-    # Enforce fullscreen at runtime as well as in project.godot.
-    call_deferred("_force_fullscreen")
-    if OS.has_feature("android"):
-        OS.request_permissions()
-
+    # SAFE startup: no Android permission dialog and no forced window-mode
+    # before the 3D scene has been created.
     _build_environment()
     _build_hall()
     _build_player()
@@ -56,8 +53,6 @@ func _ready() -> void:
     _update_controller_status()
     _set_big_screen("ARCADE HALL", "MAME  •  ATARI 7800", "Steuerkreuz: laufen   Rechter Stick: umsehen")
 
-func _force_fullscreen() -> void:
-    DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 
 func _physics_process(delta: float) -> void:
     if not selection_open:
@@ -473,7 +468,7 @@ func _open_selection() -> void:
     select_system.text = system
 
     if selection_games.is_empty():
-        select_status.text = "Keine ROMs gefunden.\nOrdner: /storage/emulated/0/ArcadeHall/roms/%s/" % _system_subdir(system)
+        select_status.text = "Keine ROMs gefunden oder Speicherzugriff fehlt.\nOrdner: /storage/emulated/0/ArcadeHall/roms/%s/" % _system_subdir(system)
     else:
         select_status.text = "Steuerkreuz ↑/↓ = wählen    X = starten    Kreis = zurück"
 
