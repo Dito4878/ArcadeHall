@@ -1,5 +1,5 @@
 ; Engine configuration file.
-; Arcade Hall v0.1 - Fire TV / Android TV prototype
+; Arcade Hall v0.2 - Fire TV / Android TV prototype
 config_version=5
 
 [application]
@@ -24,7 +24,7 @@ renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
 textures/default_filters/use_nearest_mipmap_filter=false
-environment/defaults/default_clear_color=Color(0.012, 0.014, 0.02, 1)
+environment/defaults/default_clear_color=Color(0.006, 0.008, 0.014, 1)
 
 [input]
 
