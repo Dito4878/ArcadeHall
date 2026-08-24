@@ -1,5 +1,5 @@
 ; Engine configuration file.
-; Arcade Hall v0.2 - Fire TV / Android TV prototype
+; Arcade Hall v0.3 - Fire TV / Android TV prototype
 config_version=5
 
 [application]
@@ -29,35 +29,35 @@ environment/defaults/default_clear_color=Color(0.006, 0.008, 0.014, 1)
 [input]
 
 move_left={
-"deadzone": 0.2,
-"events": [Object(InputEventJoypadMotion,"axis":0,"axis_value":-1.0), Object(InputEventKey,"physical_keycode":65)]
+"deadzone": 0.5,
+"events": [Object(InputEventJoypadButton,"button_index":13), Object(InputEventKey,"physical_keycode":4194319)]
 }
 move_right={
-"deadzone": 0.2,
-"events": [Object(InputEventJoypadMotion,"axis":0,"axis_value":1.0), Object(InputEventKey,"physical_keycode":68)]
+"deadzone": 0.5,
+"events": [Object(InputEventJoypadButton,"button_index":14), Object(InputEventKey,"physical_keycode":4194321)]
 }
 move_forward={
-"deadzone": 0.2,
-"events": [Object(InputEventJoypadMotion,"axis":1,"axis_value":-1.0), Object(InputEventKey,"physical_keycode":87), Object(InputEventKey,"physical_keycode":4194320)]
+"deadzone": 0.5,
+"events": [Object(InputEventJoypadButton,"button_index":11), Object(InputEventKey,"physical_keycode":4194320)]
 }
 move_back={
-"deadzone": 0.2,
-"events": [Object(InputEventJoypadMotion,"axis":1,"axis_value":1.0), Object(InputEventKey,"physical_keycode":83), Object(InputEventKey,"physical_keycode":4194322)]
+"deadzone": 0.5,
+"events": [Object(InputEventJoypadButton,"button_index":12), Object(InputEventKey,"physical_keycode":4194322)]
 }
 look_left={
-"deadzone": 0.18,
-"events": [Object(InputEventJoypadMotion,"axis":2,"axis_value":-1.0), Object(InputEventKey,"physical_keycode":4194319)]
+"deadzone": 0.30,
+"events": [Object(InputEventJoypadMotion,"axis":2,"axis_value":-1.0)]
 }
 look_right={
-"deadzone": 0.18,
-"events": [Object(InputEventJoypadMotion,"axis":2,"axis_value":1.0), Object(InputEventKey,"physical_keycode":4194321)]
+"deadzone": 0.30,
+"events": [Object(InputEventJoypadMotion,"axis":2,"axis_value":1.0)]
 }
 look_up={
-"deadzone": 0.18,
+"deadzone": 0.30,
 "events": [Object(InputEventJoypadMotion,"axis":3,"axis_value":-1.0)]
 }
 look_down={
-"deadzone": 0.18,
+"deadzone": 0.30,
 "events": [Object(InputEventJoypadMotion,"axis":3,"axis_value":1.0)]
 }
 interact={
