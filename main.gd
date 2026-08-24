@@ -1,8 +1,19 @@
 extends Node3D
 
 const WALK_SPEED := 2.35
-const LOOK_SPEED := 1.45
-const INTERACT_DISTANCE := 2.25
+const LOOK_SPEED := 1.65
+const LOOK_DEADZONE := 0.30
+const INTERACT_DISTANCE := 2.35
+
+const ROM_ROOTS := [
+    "/storage/emulated/0/ArcadeHall/roms",
+    "/sdcard/ArcadeHall/roms"
+]
+
+const RETROARCH_PACKAGES := [
+    "com.retroarch.aarch64",
+    "com.retroarch"
+]
 
 var player: CharacterBody3D
 var head: Node3D
@@ -12,12 +23,15 @@ var hint_panel: ColorRect
 var hint_label: Label
 var controller_label: Label
 
-var select_panel: ColorRect
+var select_backdrop: ColorRect
 var select_title: Label
+var select_system: Label
+var select_status: Label
 var select_list: VBoxContainer
+
 var selection_open := false
 var selection_index := 0
-var selection_games: Array[String] = []
+var selection_games: Array[Dictionary] = []
 
 var big_screen_title: Label3D
 var big_screen_subtitle: Label3D
@@ -29,21 +43,53 @@ var current_cabinet := -1
 var last_focused_cabinet := -1
 
 func _ready() -> void:
+    # Enforce fullscreen at runtime as well as in project.godot.
+    call_deferred("_force_fullscreen")
+    if OS.has_feature("android"):
+        OS.request_permissions()
+
     _build_environment()
     _build_hall()
     _build_player()
     _build_cabinets()
     _build_hud()
     _update_controller_status()
-    _set_big_screen("ARCADE HALL", "MAME  •  ATARI 7800", "D-Pad: laufen   Rechter Stick: umsehen")
+    _set_big_screen("ARCADE HALL", "MAME  •  ATARI 7800", "Steuerkreuz: laufen   Rechter Stick: umsehen")
+
+func _force_fullscreen() -> void:
+    DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 
 func _physics_process(delta: float) -> void:
     if not selection_open:
         _move_player(delta)
-        _look(delta)
+        _look_with_raw_right_stick(delta)
         _find_nearest_cabinet()
         _update_hud()
     _handle_actions()
+
+func _filtered_axis(value: float) -> float:
+    var a := abs(value)
+    if a <= LOOK_DEADZONE:
+        return 0.0
+    return sign(value) * ((a - LOOK_DEADZONE) / (1.0 - LOOK_DEADZONE))
+
+func _look_with_raw_right_stick(delta: float) -> void:
+    # Read the right stick directly. This avoids the old action-map bug
+    # where looking up could leave the opposite direction unresponsive.
+    var pads := Input.get_connected_joypads()
+    if pads.is_empty():
+        return
+
+    var pad_id: int = pads[0]
+    var lx := _filtered_axis(Input.get_joy_axis(pad_id, 2))
+    var ly := _filtered_axis(Input.get_joy_axis(pad_id, 3))
+
+    head.rotation.y -= lx * LOOK_SPEED * delta
+
+    # Android/PS5: right-stick up is negative Y, down is positive Y.
+    # Positive camera X looks upward in Godot.
+    pitch = clamp(pitch - ly * LOOK_SPEED * delta, deg_to_rad(-55.0), deg_to_rad(55.0))
+    camera.rotation.x = pitch
 
 func _mat(color: Color, emission := false, energy := 1.0) -> StandardMaterial3D:
     var m := StandardMaterial3D.new()
@@ -74,6 +120,7 @@ func _box(parent: Node3D, name: String, size: Vector3, pos: Vector3, material: M
         body.position = pos
         body.add_child(shape)
         parent.add_child(body)
+
     return mi
 
 func _build_environment() -> void:
@@ -116,40 +163,40 @@ func _build_hall() -> void:
         _box(hall, "NeonCyan", Vector3(2.8, 0.035, 0.07), Vector3(-1.65, 3.08, z), cyan)
         _box(hall, "NeonMagenta", Vector3(2.8, 0.035, 0.07), Vector3(1.65, 3.08, z), magenta)
 
-    # Large 16:9-style screen on the back wall.
+    # The physical wall screen is deliberately almost wall-filling.
     var screen_border := _mat(Color(0.05, 0.055, 0.075))
-    var screen_glow := _mat(Color(0.012, 0.025, 0.055), true, 0.8)
-    _box(hall, "BigScreenBorder", Vector3(7.0, 2.45, 0.16), Vector3(0, 1.68, -12.72), screen_border)
-    _box(hall, "BigScreen", Vector3(6.65, 2.10, 0.05), Vector3(0, 1.68, -12.61), screen_glow)
+    var screen_glow := _mat(Color(0.010, 0.025, 0.060), true, 1.0)
+    _box(hall, "BigScreenBorder", Vector3(9.1, 3.05, 0.16), Vector3(0, 1.62, -12.72), screen_border)
+    _box(hall, "BigScreen", Vector3(8.75, 2.72, 0.05), Vector3(0, 1.62, -12.61), screen_glow)
 
     big_screen_title = Label3D.new()
     big_screen_title.text = "ARCADE HALL"
-    big_screen_title.font_size = 92
-    big_screen_title.position = Vector3(0, 2.10, -12.54)
-    big_screen_title.outline_size = 8
+    big_screen_title.font_size = 120
+    big_screen_title.position = Vector3(0, 2.12, -12.54)
+    big_screen_title.outline_size = 10
     big_screen_title.modulate = Color(0.15, 0.90, 1.0)
     hall.add_child(big_screen_title)
 
     big_screen_subtitle = Label3D.new()
     big_screen_subtitle.text = "MAME  •  ATARI 7800"
-    big_screen_subtitle.font_size = 48
-    big_screen_subtitle.position = Vector3(0, 1.55, -12.54)
-    big_screen_subtitle.outline_size = 6
+    big_screen_subtitle.font_size = 62
+    big_screen_subtitle.position = Vector3(0, 1.48, -12.54)
+    big_screen_subtitle.outline_size = 7
     big_screen_subtitle.modulate = Color.WHITE
     hall.add_child(big_screen_subtitle)
 
     big_screen_info = Label3D.new()
-    big_screen_info.text = "D-Pad: laufen   Rechter Stick: umsehen"
-    big_screen_info.font_size = 30
-    big_screen_info.position = Vector3(0, 1.10, -12.54)
-    big_screen_info.outline_size = 5
+    big_screen_info.text = "Steuerkreuz: laufen   Rechter Stick: umsehen"
+    big_screen_info.font_size = 38
+    big_screen_info.position = Vector3(0, 0.92, -12.54)
+    big_screen_info.outline_size = 6
     big_screen_info.modulate = Color(0.82, 0.86, 0.95)
     hall.add_child(big_screen_info)
 
 func _build_player() -> void:
     player = CharacterBody3D.new()
     player.name = "Player"
-    player.position = Vector3(0, 0.95, 4.0)
+    player.position = Vector3(0, 0.95, 3.8)
 
     var collision := CollisionShape3D.new()
     var capsule := CapsuleShape3D.new()
@@ -166,7 +213,7 @@ func _build_player() -> void:
     camera = Camera3D.new()
     camera.name = "Camera"
     camera.current = true
-    camera.fov = 75
+    camera.fov = 76
     camera.near = 0.08
     head.add_child(camera)
 
@@ -228,52 +275,82 @@ func _build_hud() -> void:
     var layer := CanvasLayer.new()
     add_child(layer)
 
+    # Root Control fills the whole TV. All UI uses anchors instead of a
+    # fixed 1280x720 centered box.
+    var root_ui := Control.new()
+    root_ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    layer.add_child(root_ui)
+
     controller_label = Label.new()
-    controller_label.position = Vector2(20, 16)
-    controller_label.add_theme_font_size_override("font_size", 14)
+    controller_label.position = Vector2(28, 22)
+    controller_label.add_theme_font_size_override("font_size", 22)
     controller_label.modulate = Color(0.70,0.74,0.82,0.72)
-    layer.add_child(controller_label)
+    root_ui.add_child(controller_label)
 
     hint_panel = ColorRect.new()
-    hint_panel.position = Vector2(420, 612)
-    hint_panel.size = Vector2(440, 60)
-    hint_panel.color = Color(0.012,0.015,0.026,0.86)
+    hint_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+    hint_panel.position = Vector2(-310, -104)
+    hint_panel.size = Vector2(620, 72)
+    hint_panel.color = Color(0.012,0.015,0.026,0.88)
     hint_panel.visible = false
-    layer.add_child(hint_panel)
+    root_ui.add_child(hint_panel)
 
     hint_label = Label.new()
-    hint_label.position = Vector2(440, 626)
-    hint_label.size = Vector2(400, 32)
+    hint_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+    hint_label.position = Vector2(-285, -91)
+    hint_label.size = Vector2(570, 46)
     hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    hint_label.add_theme_font_size_override("font_size", 22)
+    hint_label.add_theme_font_size_override("font_size", 30)
     hint_label.visible = false
-    layer.add_child(hint_label)
+    root_ui.add_child(hint_label)
 
-    # Big couch-distance game selection overlay.
-    select_panel = ColorRect.new()
-    select_panel.position = Vector2(180, 110)
-    select_panel.size = Vector2(920, 500)
-    select_panel.color = Color(0.008,0.011,0.020,0.95)
-    select_panel.visible = false
-    layer.add_child(select_panel)
+    # Full-TV game selection overlay.
+    select_backdrop = ColorRect.new()
+    select_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    select_backdrop.color = Color(0.005,0.007,0.013,0.97)
+    select_backdrop.visible = false
+    root_ui.add_child(select_backdrop)
 
     select_title = Label.new()
-    select_title.position = Vector2(230, 145)
-    select_title.size = Vector2(820, 55)
+    select_title.set_anchors_preset(Control.PRESET_TOP_WIDE)
+    select_title.position = Vector2(100, 78)
+    select_title.size = Vector2(-200, 90)
     select_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    select_title.add_theme_font_size_override("font_size", 34)
+    select_title.add_theme_font_size_override("font_size", 58)
     select_title.visible = false
-    layer.add_child(select_title)
+    root_ui.add_child(select_title)
+
+    select_system = Label.new()
+    select_system.set_anchors_preset(Control.PRESET_TOP_WIDE)
+    select_system.position = Vector2(100, 164)
+    select_system.size = Vector2(-200, 60)
+    select_system.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    select_system.add_theme_font_size_override("font_size", 34)
+    select_system.modulate = Color(0.25, 0.84, 1.0)
+    select_system.visible = false
+    root_ui.add_child(select_system)
 
     select_list = VBoxContainer.new()
-    select_list.position = Vector2(300, 225)
-    select_list.size = Vector2(680, 310)
-    select_list.add_theme_constant_override("separation", 16)
+    select_list.set_anchors_preset(Control.PRESET_CENTER)
+    select_list.position = Vector2(-560, -250)
+    select_list.size = Vector2(1120, 510)
+    select_list.add_theme_constant_override("separation", 20)
     select_list.visible = false
-    layer.add_child(select_list)
+    root_ui.add_child(select_list)
+
+    select_status = Label.new()
+    select_status.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+    select_status.position = Vector2(100, -135)
+    select_status.size = Vector2(-200, 90)
+    select_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    select_status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+    select_status.add_theme_font_size_override("font_size", 28)
+    select_status.modulate = Color(0.82,0.85,0.92)
+    select_status.visible = false
+    root_ui.add_child(select_status)
 
 func _move_player(delta: float) -> void:
-    # Movement actions contain D-pad only; left stick is intentionally unused.
+    # D-pad only. Left stick is deliberately not read anywhere.
     var input_vec := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
     var forward_basis := Basis(Vector3.UP, head.rotation.y)
     var dir := (forward_basis * Vector3(input_vec.x, 0, input_vec.y)).normalized()
@@ -288,16 +365,10 @@ func _move_player(delta: float) -> void:
 
     player.move_and_slide()
 
-func _look(delta: float) -> void:
-    var lx := Input.get_action_strength("look_right") - Input.get_action_strength("look_left")
-    var ly := Input.get_action_strength("look_down") - Input.get_action_strength("look_up")
-    head.rotation.y -= lx * LOOK_SPEED * delta
-    pitch = clamp(pitch - ly * LOOK_SPEED * delta, deg_to_rad(-42), deg_to_rad(42))
-    camera.rotation.x = pitch
-
 func _find_nearest_cabinet() -> void:
     current_cabinet = -1
     var best := INTERACT_DISTANCE
+
     for i in range(cabinets.size()):
         var d := player.global_position.distance_to(cabinets[i].global_position)
         if d < best:
@@ -308,19 +379,15 @@ func _find_nearest_cabinet() -> void:
         last_focused_cabinet = current_cabinet
         if current_cabinet >= 0:
             var cab := cabinets[current_cabinet]
-            _set_big_screen(
-                str(cab.get_meta("title")),
-                str(cab.get_meta("system")),
-                "X drücken für Spielauswahl"
-            )
+            _set_big_screen(str(cab.get_meta("title")), str(cab.get_meta("system")), "X = Spielauswahl")
         else:
-            _set_big_screen("ARCADE HALL", "MAME  •  ATARI 7800", "D-Pad: laufen   Rechter Stick: umsehen")
+            _set_big_screen("ARCADE HALL", "MAME  •  ATARI 7800", "Steuerkreuz: laufen   Rechter Stick: umsehen")
 
 func _update_hud() -> void:
     if current_cabinet >= 0:
         hint_panel.visible = true
         hint_label.visible = true
-        hint_label.text = "X  –  Spielauswahl"
+        hint_label.text = "X  –  SPIELE"
     else:
         hint_panel.visible = false
         hint_label.visible = false
@@ -341,64 +408,182 @@ func _update_controller_status() -> void:
             names.append(Input.get_joy_name(id))
         controller_label.text = ", ".join(names)
 
-func _games_for_system(system: String) -> Array[String]:
+func _system_subdir(system: String) -> String:
+    return "mame" if system == "MAME" else "atari7800"
+
+func _valid_rom_extension(system: String, filename: String) -> bool:
+    var ext := filename.get_extension().to_lower()
     if system == "MAME":
-        return ["Pac-Man", "Donkey Kong", "Galaga", "Bubble Bobble"]
-    return ["Donkey Kong", "Centipede", "Asteroids", "Joust"]
+        return ext in ["zip", "7z"]
+    return ext in ["a78", "bin", "rom", "zip"]
+
+func _scan_roms(system: String) -> Array[Dictionary]:
+    var found: Array[Dictionary] = []
+    var subdir := _system_subdir(system)
+
+    for root in ROM_ROOTS:
+        var path := root.path_join(subdir)
+        var dir := DirAccess.open(path)
+        if dir == null:
+            continue
+
+        dir.list_dir_begin()
+        while true:
+            var name := dir.get_next()
+            if name == "":
+                break
+            if dir.current_is_dir():
+                continue
+            if _valid_rom_extension(system, name):
+                found.append({
+                    "name": name.get_basename(),
+                    "path": path.path_join(name),
+                    "system": system
+                })
+        dir.list_dir_end()
+
+        if not found.is_empty():
+            break
+
+    found.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+        return str(a["name"]).naturalnocasecmp_to(str(b["name"])) < 0
+    )
+    return found
 
 func _open_selection() -> void:
     if current_cabinet < 0:
         return
 
     var cab := cabinets[current_cabinet]
-    selection_games = _games_for_system(str(cab.get_meta("system")))
+    var system := str(cab.get_meta("system"))
+    selection_games = _scan_roms(system)
     selection_index = 0
     selection_open = true
 
-    select_panel.visible = true
+    select_backdrop.visible = true
     select_title.visible = true
+    select_system.visible = true
     select_list.visible = true
+    select_status.visible = true
+
     hint_panel.visible = false
     hint_label.visible = false
 
-    select_title.text = "%s – SPIELAUSWAHL" % str(cab.get_meta("system"))
+    select_title.text = "SPIELAUSWAHL"
+    select_system.text = system
+
+    if selection_games.is_empty():
+        select_status.text = "Keine ROMs gefunden.\nOrdner: /storage/emulated/0/ArcadeHall/roms/%s/" % _system_subdir(system)
+    else:
+        select_status.text = "Steuerkreuz ↑/↓ = wählen    X = starten    Kreis = zurück"
+
     _refresh_selection()
 
 func _refresh_selection() -> void:
     for child in select_list.get_children():
         child.queue_free()
 
-    for i in range(selection_games.size()):
+    if selection_games.is_empty():
+        var empty := Label.new()
+        empty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+        empty.add_theme_font_size_override("font_size", 42)
+        empty.text = "KEINE SPIELE GEFUNDEN"
+        empty.modulate = Color(1.0,0.55,0.40)
+        select_list.add_child(empty)
+        return
+
+    var start := max(0, selection_index - 4)
+    var end := min(selection_games.size(), start + 9)
+    if end - start < 9:
+        start = max(0, end - 9)
+
+    for i in range(start, end):
         var row := Label.new()
         row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
         row.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-        row.add_theme_font_size_override("font_size", 30 if i == selection_index else 24)
-        row.text = ("▶  " if i == selection_index else "    ") + selection_games[i]
-        row.modulate = Color.WHITE if i == selection_index else Color(0.68,0.72,0.80)
+        row.add_theme_font_size_override("font_size", 48 if i == selection_index else 38)
+        row.text = ("▶  " if i == selection_index else "    ") + str(selection_games[i]["name"])
+        row.modulate = Color.WHITE if i == selection_index else Color(0.58,0.63,0.72)
         select_list.add_child(row)
 
-    if not selection_games.is_empty():
-        _set_big_screen(selection_games[selection_index], "VORSCHAU", "X = starten   Kreis = zurück")
+    _set_big_screen(
+        str(selection_games[selection_index]["name"]),
+        str(selection_games[selection_index]["system"]),
+        "X = START"
+    )
 
 func _close_selection() -> void:
     selection_open = false
-    select_panel.visible = false
+    select_backdrop.visible = false
     select_title.visible = false
+    select_system.visible = false
     select_list.visible = false
+    select_status.visible = false
+
     if current_cabinet >= 0:
         var cab := cabinets[current_cabinet]
-        _set_big_screen(str(cab.get_meta("title")), str(cab.get_meta("system")), "X drücken für Spielauswahl")
+        _set_big_screen(str(cab.get_meta("title")), str(cab.get_meta("system")), "X = Spielauswahl")
+
+func _core_filename(system: String) -> String:
+    # v0.4 uses these two RetroArch cores deliberately.
+    return "mame2003_plus_libretro_android.so" if system == "MAME" else "prosystem_libretro_android.so"
+
+func _launch_retroarch(game: Dictionary) -> bool:
+    if not OS.has_feature("android"):
+        select_status.text = "Spielstart funktioniert nur auf Android / Fire TV."
+        return false
+
+    var runtime = Engine.get_singleton("AndroidRuntime")
+    if runtime == null:
+        select_status.text = "AndroidRuntime nicht verfügbar."
+        return false
+
+    var activity = runtime.getActivity()
+    var Intent = JavaClassWrapper.wrap("android.content.Intent")
+    var ComponentName = JavaClassWrapper.wrap("android.content.ComponentName")
+
+    for package_name in RETROARCH_PACKAGES:
+        var intent = Intent.Intent()
+        var component = ComponentName.ComponentName(
+            package_name,
+            "com.retroarch.browser.retroactivity.RetroActivityFuture"
+        )
+        intent.setComponent(component)
+
+        var core_path := "/data/data/%s/cores/%s" % [package_name, _core_filename(str(game["system"]))]
+        var config_path := "/storage/emulated/0/Android/data/%s/files/retroarch.cfg" % package_name
+
+        intent.putExtra("ROM", str(game["path"]))
+        intent.putExtra("LIBRETRO", core_path)
+        intent.putExtra("CONFIGFILE", config_path)
+        intent.putExtra("DATADIR", "/data/data/%s" % package_name)
+        intent.putExtra("SDCARD", "/storage/emulated/0")
+        intent.putExtra("EXTERNAL", "/storage/emulated/0/Android/data/%s/files" % package_name)
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+
+        activity.startActivity(intent)
+        var exception = JavaClassWrapper.get_exception()
+        if exception == null:
+            select_status.text = "Starte %s …" % str(game["name"])
+            return true
+
+    select_status.text = "RetroArch wurde nicht gefunden.\nInstalliere RetroArch und die passenden Cores."
+    return false
 
 func _handle_actions() -> void:
     if selection_open:
-        if Input.is_action_just_pressed("move_forward"):
+        if Input.is_action_just_pressed("move_forward") and not selection_games.is_empty():
             selection_index = max(0, selection_index - 1)
             _refresh_selection()
-        elif Input.is_action_just_pressed("move_back"):
+
+        elif Input.is_action_just_pressed("move_back") and not selection_games.is_empty():
             selection_index = min(selection_games.size() - 1, selection_index + 1)
             _refresh_selection()
-        elif Input.is_action_just_pressed("interact"):
-            _set_big_screen(selection_games[selection_index], "START", "Emulator-Anbindung folgt als nächster Schritt")
+
+        elif Input.is_action_just_pressed("interact") and not selection_games.is_empty():
+            _launch_retroarch(selection_games[selection_index])
+
         elif Input.is_action_just_pressed("back"):
             _close_selection()
         return
