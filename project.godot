@@ -1,5 +1,5 @@
 ; Engine configuration file.
-; Arcade Hall v0.4.1 - Fire TV / Android TV SAFE
+; Arcade Hall v0.3 - Fire TV / Android TV prototype
 config_version=5
 
 [application]
@@ -8,14 +8,14 @@ config/name="Arcade Hall"
 run/main_scene="res://main.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
 boot_splash/show_image=false
-run/max_fps=60
 
 [display]
 
-window/size/viewport_width=1920
-window/size/viewport_height=1080
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=1280
+window/size/window_height_override=720
 window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
 window/handheld/orientation=1
 
 [rendering]
@@ -24,7 +24,7 @@ renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
 textures/default_filters/use_nearest_mipmap_filter=false
-environment/defaults/default_clear_color=Color(0.003, 0.004, 0.008, 1)
+environment/defaults/default_clear_color=Color(0.006, 0.008, 0.014, 1)
 
 [input]
 
@@ -44,9 +44,25 @@ move_back={
 "deadzone": 0.5,
 "events": [Object(InputEventJoypadButton,"button_index":12), Object(InputEventKey,"physical_keycode":4194322)]
 }
+look_left={
+"deadzone": 0.30,
+"events": [Object(InputEventJoypadMotion,"axis":2,"axis_value":-1.0)]
+}
+look_right={
+"deadzone": 0.30,
+"events": [Object(InputEventJoypadMotion,"axis":2,"axis_value":1.0)]
+}
+look_up={
+"deadzone": 0.30,
+"events": [Object(InputEventJoypadMotion,"axis":3,"axis_value":-1.0)]
+}
+look_down={
+"deadzone": 0.30,
+"events": [Object(InputEventJoypadMotion,"axis":3,"axis_value":1.0)]
+}
 interact={
 "deadzone": 0.5,
-"events": [Object(InputEventJoypadButton,"button_index":0), Object(InputEventKey,"physical_keycode":4194309)]
+"events": [Object(InputEventJoypadButton,"button_index":0), Object(InputEventKey,"physical_keycode":32), Object(InputEventKey,"physical_keycode":4194309)]
 }
 back={
 "deadzone": 0.5,
